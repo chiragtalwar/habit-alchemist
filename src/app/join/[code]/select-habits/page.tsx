@@ -49,43 +49,79 @@ export default function SelectHabitsPage() {
 
     setIsLoading(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('Not authenticated')
+      // 1. Get current user session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        console.error('Session error:', sessionError)
+        throw new Error('Not authenticated')
+      }
 
-      // Get invite data for creator's user_id
-      const { data: inviteData } = await supabase
+      // 2. Get invite data with detailed logging
+      const { data: inviteData, error: inviteError } = await supabase
         .from('invite_links')
-        .select('user_id')
+        .select('*')  // Select all fields for debugging
         .eq('invite_code', params.code)
         .single()
 
-      if (!inviteData) throw new Error('Invalid invite')
+      if (inviteError || !inviteData) {
+        console.error('Invite error:', inviteError)
+        throw new Error('Invalid invite')
+      }
 
-      // Create teammate relationship
-      await supabase
+      console.log('Invite data:', inviteData)  // Debug log
+
+      // 3. Create teammate relationship with explicit values
+      const teammateData = {
+        user_id1: inviteData.user_id,
+        user_id2: session.user.id,
+        status: 'active',
+        created_at: new Date().toISOString()
+      }
+
+      console.log('Attempting to create teammate with:', teammateData)  // Debug log
+
+      const { error: teammateError } = await supabase
         .from('teammates')
-        .insert({
-          user_id1: inviteData.user_id, // creator
-          user_id2: session.user.id,     // joiner
-          created_at: new Date().toISOString()
-        })
+        .insert(teammateData)
 
-      // Insert joiner's habits
+      if (teammateError) {
+        console.error('Teammate creation error:', teammateError)
+        throw teammateError
+      }
+
+      // 4. Insert habits for the joiner
       const habitsToInsert = selectedHabits.map(habitId => ({
         user_id: session.user.id,
         name: habitId,
-        goal: selectedGoals[habitId]
+        goal: selectedGoals[habitId] || '30 minutes',
+        created_at: new Date().toISOString()
       }))
 
-      await supabase
+      const { error: habitsError } = await supabase
         .from('habits')
         .insert(habitsToInsert)
 
-      // Redirect to dashboard
+      if (habitsError) {
+        console.error('Habits creation error:', habitsError)
+        throw habitsError
+      }
+
+      // 5. Deactivate the invite link
+      const { error: updateError } = await supabase
+        .from('invite_links')
+        .update({ is_active: false })
+        .eq('invite_code', params.code)
+
+      if (updateError) {
+        console.error('Invite update error:', updateError)
+        // Don't throw here, not critical
+      }
+
+      // Success! Redirect to dashboard
       router.push('/dashboard')
     } catch (error) {
-      console.error('Error completing setup:', error)
-      alert('Failed to complete setup')
+      console.error('Complete setup error:', error)
+      alert('Failed to complete setup. Please try again.')
     } finally {
       setIsLoading(false)
     }

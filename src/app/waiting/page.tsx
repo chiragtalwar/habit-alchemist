@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from "next/navigation"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Button } from "@/components/ui/button"
 
 export default function WaitingPage() {
   const [inviteLink, setInviteLink] = useState<string>('')
@@ -19,7 +20,7 @@ export default function WaitingPage() {
           throw new Error('Not authenticated')
         }
 
-        // Get the most recent invite link for the current user
+        // Get the most recent invite link
         const { data: inviteData, error: inviteError } = await supabase
           .from('invite_links')
           .select('invite_code')
@@ -32,6 +33,28 @@ export default function WaitingPage() {
 
         if (inviteData) {
           setInviteLink(`${window.location.origin}/join/${inviteData.invite_code}`)
+        }
+
+        // Subscribe to teammates table changes
+        const teammatesSubscription = supabase
+          .channel('teammates-channel')
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'teammates',
+              filter: `user_id1=eq.${session.user.id}`,
+            },
+            (payload) => {
+              console.log('Teammate joined!', payload)
+              router.push('/dashboard')
+            }
+          )
+          .subscribe()
+
+        return () => {
+          teammatesSubscription.unsubscribe()
         }
       } catch (error) {
         console.error('Error setting up waiting room:', error)
@@ -57,15 +80,15 @@ export default function WaitingPage() {
       {inviteLink && (
         <div className="bg-muted p-4 rounded-md text-center break-all">
           <p className="mb-4">{inviteLink}</p>
-          <button
+          <Button
             onClick={() => {
               navigator.clipboard.writeText(inviteLink)
               alert('Link copied to clipboard!')
             }}
-            className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90"
+            className="w-full max-w-md"
           >
             Copy Link
-          </button>
+          </Button>
         </div>
       )}
     </div>

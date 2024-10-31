@@ -1,0 +1,11 @@
+[33mcommit 5a5e777c4fd6ac12189b4d586e7b10a9343124e2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: ChiragTalwar <chiragtalwar90@gmail.com>
+Date:   Fri Nov 1 00:14:26 2024 +0530
+
+    Initial commit: Basic authentication and teammate pairing flow
+
+[33mcommit 09cc890f669c584bc6441d14a9f26ef8823b2b4c[m
+Author: ChiragTalwar <chiragtalwar90@gmail.com>
+Date:   Thu Oct 31 17:21:59 2024 +0530
+
+    Initial commit from Create Next App
