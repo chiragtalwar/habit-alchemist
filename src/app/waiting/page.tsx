@@ -14,13 +14,14 @@ export default function WaitingPage() {
   useEffect(() => {
     const setupWaitingRoom = async () => {
       try {
-        // Check authentication first
         const { data: { session }, error: authError } = await supabase.auth.getSession()
         if (authError || !session) {
           throw new Error('Not authenticated')
         }
 
-        // Get the most recent invite link
+        console.log('Current user ID:', session.user.id)
+
+        // Get invite link
         const { data: inviteData, error: inviteError } = await supabase
           .from('invite_links')
           .select('invite_code')
@@ -30,31 +31,27 @@ export default function WaitingPage() {
           .single()
 
         if (inviteError) throw inviteError
-
         if (inviteData) {
           setInviteLink(`${window.location.origin}/join/${inviteData.invite_code}`)
         }
 
-        // Subscribe to teammates table changes
-        const teammatesSubscription = supabase
-          .channel('teammates-channel')
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'teammates',
-              filter: `user_id1=eq.${session.user.id}`,
-            },
-            (payload) => {
-              console.log('Teammate joined!', payload)
-              router.push('/dashboard')
-            }
-          )
-          .subscribe()
+        // Set up polling interval to check for teammate
+        const interval = setInterval(async () => {
+          const { data: teammateData, error: teammateError } = await supabase
+            .from('teammates')
+            .select('*')
+            .or(`user_id1.eq.${session.user.id},user_id2.eq.${session.user.id}`)
+            .single()
+
+          if (teammateData && !teammateError) {
+            console.log('Teammate found:', teammateData)
+            clearInterval(interval)
+            router.push('/dashboard')
+          }
+        }, 2000) // Check every 2 seconds
 
         return () => {
-          teammatesSubscription.unsubscribe()
+          clearInterval(interval)
         }
       } catch (error) {
         console.error('Error setting up waiting room:', error)
